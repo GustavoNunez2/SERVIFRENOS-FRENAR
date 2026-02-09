@@ -1,4 +1,3 @@
-
 import { Product, Sale, BrandConfig, ExternalSource } from './types';
 
 const DB_NAME = 'NovaPOS_DB';
@@ -33,6 +32,21 @@ export class POSDatabase {
       };
 
       request.onerror = () => reject('Error opening database');
+    });
+  }
+
+  // MÉTODO PARA GUARDADO MASIVO (Optimizado para Excel)
+  async bulkSaveProducts(products: Product[]): Promise<void> {
+    return new Promise((resolve, reject) => {
+      const transaction = this.db!.transaction('products', 'readwrite');
+      const store = transaction.objectStore('products');
+      
+      transaction.oncomplete = () => resolve();
+      transaction.onerror = () => reject('Error en guardado masivo');
+
+      products.forEach(product => {
+        store.put(product); // put actualiza si existe el ID, o crea si es nuevo
+      });
     });
   }
 

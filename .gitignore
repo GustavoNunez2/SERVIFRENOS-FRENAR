@@ -1,27 +1,36 @@
+# Dependencias
+node_modules/
+
+# Compilación de Vite (Frontend)
+dist/
+dist-ssr/
+
+# Compilación de Electron (El empaquetado final)
+dist-electron/
+out/
+release/
+
+# Archivos de entorno y claves (Seguridad)
+.env
+.env.local
+.env.production
+.env.development
+
 # Logs
 logs
 *.log
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
-pnpm-debug.log*
-lerna-debug.log*
 
-node_modules
-dist
-dist-ssr
-*.local
-
-# Editor directories and files
+# Editor
 .vscode/*
 !.vscode/extensions.json
-.idea
-.DS_Store
+.idea/
 *.suo
-*.ntvs*
-*.njsproj
 *.sln
-*.sw?
+.DS_Store
+Thumbs.db
 
-# Build outputs
-release/
+# Temporales de Electron
+*.opened

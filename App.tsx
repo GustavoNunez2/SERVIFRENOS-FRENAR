@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback } from 'react';
 import { db } from './db';
 import { Product, View, BrandConfig, Sale, ExternalSource } from './types';
@@ -12,6 +11,7 @@ import Scraping from './components/Scraping';
 import Settings from './components/Settings';
 import SourcesManager from './components/SourcesManager';
 
+// Configuración por defecto para asegurar que la UI siempre tenga datos
 const DEFAULT_BRAND: BrandConfig = {
   name: 'NovaPOS',
   logo: 'https://picsum.photos/200/200',
@@ -30,23 +30,33 @@ const App: React.FC = () => {
   const [config, setConfig] = useState<BrandConfig>(DEFAULT_BRAND);
   const [loading, setLoading] = useState(true);
 
+  // Carga de datos desde IndexedDB (db.ts)
   const refreshData = useCallback(async () => {
-    await db.init();
-    const p = await db.getAllProducts();
-    const s = await db.getAllSales();
-    const c = await db.getConfig();
-    const src = await db.getAllExternalSources();
-    setProducts(p);
-    setSales(s);
-    setSources(src);
-    if (c) setConfig(c);
-    setLoading(false);
+    try {
+      await db.init();
+      const [p, s, c, src] = await Promise.all([
+        db.getAllProducts(),
+        db.getAllSales(),
+        db.getConfig(),
+        db.getAllExternalSources()
+      ]);
+      
+      setProducts(p || []);
+      setSales(s || []);
+      setSources(src || []);
+      if (c) setConfig(c);
+    } catch (error) {
+      console.error("Error cargando base de datos:", error);
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
   useEffect(() => {
     refreshData();
   }, [refreshData]);
 
+  // Aplicación de colores dinámicos al documento
   useEffect(() => {
     document.documentElement.style.setProperty('--primary-color', config.primaryColor);
     document.documentElement.style.setProperty('--secondary-color', config.secondaryColor);
@@ -65,8 +75,11 @@ const App: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-screen bg-gray-100">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600" style={{ borderBottomColor: config.primaryColor }}></div>
+      <div className="flex items-center justify-center h-screen bg-gray-50">
+        <div 
+          className="animate-spin rounded-full h-12 w-12 border-b-2" 
+          style={{ borderBottomColor: config.primaryColor }}
+        ></div>
       </div>
     );
   }
@@ -103,7 +116,7 @@ const App: React.FC = () => {
   };
 
   return (
-    <div className="flex h-screen overflow-hidden bg-gray-50">
+    <div className="flex h-screen overflow-hidden bg-gray-50 text-gray-900">
       <Sidebar currentView={view} setView={setView} config={config} />
       <main className="flex-1 overflow-y-auto p-4 md:p-8">
         {renderView()}

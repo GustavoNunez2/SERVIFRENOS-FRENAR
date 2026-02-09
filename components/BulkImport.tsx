@@ -1,8 +1,7 @@
-
 import React, { useState } from 'react';
 import { db } from '../db';
 import { Product, BrandConfig } from '../types';
-import { Upload, CheckCircle2, AlertTriangle, FileSpreadsheet, Download, XCircle } from 'lucide-react';
+import { Upload, CheckCircle2, FileSpreadsheet, Download, XCircle, Loader2 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 
 interface BulkImportProps {
@@ -34,7 +33,7 @@ const BulkImport: React.FC<BulkImportProps> = ({ onComplete, config }) => {
     const foundErrors: ValidationError[] = [];
 
     rawData.forEach((row, index) => {
-      const rowNum = index + 2; // +1 por header, +1 por index 0
+      const rowNum = index + 2;
       const missingFields = [];
 
       if (!row.SKU) missingFields.push("SKU");
@@ -80,22 +79,27 @@ const BulkImport: React.FC<BulkImportProps> = ({ onComplete, config }) => {
     if (data.length === 0) return;
     setLoading(true);
     try {
-      for (const row of data) {
-        const product: Product = {
-          id: row.ID_Externo || crypto.randomUUID(),
-          code: String(row.SKU),
-          name: String(row.Nombre),
-          price: Number(row.Precio_Venta),
-          cost: Number(row.Precio_Costo || 0),
-          stock: Number(row.Stock_Actual || 0),
-          category: String(row.Categoría || 'General'),
-        };
-        await db.saveProduct(product);
-      }
+      const productsToSave: Product[] = data.map(row => ({
+        id: row.ID_Externo || crypto.randomUUID(),
+        code: String(row.SKU),
+        name: String(row.Nombre),
+        price: Number(row.Precio_Venta),
+        cost: Number(row.Precio_Costo || 0),
+        stock: Number(row.Stock_Actual || 0),
+        category: String(row.Categoría || 'General'),
+        source: 'local'
+      }));
+
+      await db.bulkSaveProducts(productsToSave);
+      
       setStatus('success');
-      onComplete();
-      setData([]);
+      setTimeout(() => {
+        onComplete();
+        setData([]);
+        setStatus('idle');
+      }, 1500);
     } catch (e) {
+      console.error(e);
       setStatus('error');
     } finally {
       setLoading(false);
@@ -103,7 +107,7 @@ const BulkImport: React.FC<BulkImportProps> = ({ onComplete, config }) => {
   };
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6">
+    <div className="max-w-4xl mx-auto space-y-6 p-4">
       <header className="flex justify-between items-end">
         <div>
           <h1 className="text-2xl font-bold text-gray-800">Carga Masiva</h1>
@@ -122,73 +126,43 @@ const BulkImport: React.FC<BulkImportProps> = ({ onComplete, config }) => {
         <div className="bg-indigo-50 p-6 rounded-full" style={{ backgroundColor: `${config.primaryColor}15` }}>
           <FileSpreadsheet className="w-12 h-12" style={{ color: config.primaryColor }} />
         </div>
-        
         <div className="text-center">
           <p className="text-lg font-medium">Sube tu archivo .xlsx</p>
-          <p className="text-sm text-gray-400">Verificaremos automáticamente que no falten datos.</p>
+          <p className="text-sm text-gray-400">Verificaremos automáticamente los datos.</p>
         </div>
-
-        <input
-          type="file"
-          accept=".xlsx, .xls"
-          onChange={handleFileUpload}
-          className="hidden"
-          id="file-upload"
-        />
-        <label
-          htmlFor="file-upload"
-          className="bg-white border-2 px-8 py-3 rounded-xl font-bold cursor-pointer hover:bg-gray-50 transition-all"
-          style={{ borderColor: config.primaryColor, color: config.primaryColor }}
-        >
+        <input type="file" accept=".xlsx, .xls" onChange={handleFileUpload} className="hidden" id="file-upload" />
+        <label htmlFor="file-upload" className="bg-white border-2 px-8 py-3 rounded-xl font-bold cursor-pointer hover:bg-gray-50 transition-all" style={{ borderColor: config.primaryColor, color: config.primaryColor }}>
           Seleccionar Archivo
         </label>
       </div>
 
       {errors.length > 0 && (
-        <div className="bg-red-50 border border-red-200 rounded-2xl p-4">
+        <div className="bg-red-50 border border-red-200 rounded-2xl p-4 animate-in fade-in">
           <div className="flex items-center gap-2 text-red-700 font-bold mb-2">
-            <XCircle size={18} />
-            Se encontraron {errors.length} errores de validación:
+            <XCircle size={18} /> Se encontraron {errors.length} errores:
           </div>
           <ul className="text-xs text-red-600 space-y-1 max-h-32 overflow-y-auto">
-            {errors.map((err, i) => (
-              <li key={i}>• Fila {err.row}: {err.message}</li>
-            ))}
+            {errors.map((err, i) => <li key={i}>• Fila {err.row}: {err.message}</li>)}
           </ul>
         </div>
       )}
 
-      {data.length > 0 && (
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden animate-in slide-in-from-bottom duration-300">
+      {data.length > 0 && status !== 'success' && (
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden border-t-4" style={{ borderTopColor: config.primaryColor }}>
           <div className="p-4 border-b border-gray-100 flex justify-between items-center bg-gray-50">
-            <p className="font-bold text-gray-700">{data.length} productos listos para importar</p>
-            <button
-              onClick={processImport}
-              disabled={loading}
-              className="text-white px-6 py-2 rounded-lg font-bold hover:opacity-90 disabled:opacity-50"
-              style={{ backgroundColor: config.primaryColor }}
-            >
-              {loading ? 'Procesando...' : 'Confirmar e Importar'}
+            <p className="font-bold text-gray-700">{data.length} productos listos</p>
+            <button onClick={processImport} disabled={loading} className="text-white px-6 py-2 rounded-lg font-bold flex items-center gap-2" style={{ backgroundColor: config.primaryColor }}>
+              {loading ? <Loader2 className="animate-spin" size={18} /> : 'Confirmar e Importar'}
             </button>
           </div>
           <div className="max-h-64 overflow-y-auto">
             <table className="w-full text-left text-xs">
               <thead className="bg-gray-50 text-gray-400 uppercase font-bold sticky top-0">
-                <tr>
-                  <th className="px-4 py-3">SKU</th>
-                  <th className="px-4 py-3">Nombre</th>
-                  <th className="px-4 py-3">Precio Venta</th>
-                  <th className="px-4 py-3">Categoría</th>
-                </tr>
+                <tr><th className="px-4 py-3">SKU</th><th className="px-4 py-3">Nombre</th><th className="px-4 py-3">Precio</th></tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {data.map((row, i) => (
-                  <tr key={i}>
-                    <td className="px-4 py-3 font-mono">{row.SKU}</td>
-                    <td className="px-4 py-3 font-medium">{row.Nombre}</td>
-                    <td className="px-4 py-3">{config.currency}{row.Precio_Venta}</td>
-                    <td className="px-4 py-3">{row.Categoría}</td>
-                  </tr>
+                  <tr key={i}><td className="px-4 py-3 font-mono">{row.SKU}</td><td className="px-4 py-3 font-medium">{row.Nombre}</td><td className="px-4 py-3 font-bold text-indigo-600">{config.currency}{row.Precio_Venta}</td></tr>
                 ))}
               </tbody>
             </table>
@@ -197,9 +171,9 @@ const BulkImport: React.FC<BulkImportProps> = ({ onComplete, config }) => {
       )}
 
       {status === 'success' && (
-        <div className="bg-green-50 border border-green-200 text-green-700 p-4 rounded-xl flex items-center gap-3">
-          <CheckCircle2 />
-          ¡Importación completada! Los productos válidos han sido guardados.
+        <div className="bg-green-50 border border-green-200 text-green-700 p-6 rounded-2xl flex items-center justify-center gap-3 animate-in zoom-in">
+          <CheckCircle2 size={24} />
+          <span className="font-bold text-lg">¡Importación completada con éxito!</span>
         </div>
       )}
     </div>
